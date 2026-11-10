@@ -12,7 +12,8 @@ use super::{
 use crate::{
     AccessibilityProp, AccessibilityRole, AccessibilityState, AccessibilityValue, Bounds,
     ContextMenuEvent, EdgeInsets, EventKind, EventPayload, Hsla, ImageSource, ListContentStyle,
-    MouseEvent, NativeProp, NodeId, PointerEvents, Points, PressEvent, Prop, Size, Tag, TouchEvent,
+    MouseButtonEvent, MouseEvent, NativeProp, NodeId, PointerEvents, Points, PressEvent, Prop,
+    Size, Tag, TouchEvent,
     geometry::{DevicePixels, Radians},
     style::Color,
 };
@@ -1479,6 +1480,17 @@ pub trait Interactive: Element {
         self.on(
             EventKind::MouseMove,
             events::typed(listener.into_listener(), events::mouse),
+        )
+    }
+
+    /// A mouse button was released over it (or an element inside it): which
+    /// button (`button`), where, and with the modifier keys. The primary
+    /// button's release also reports [`Self::on_press_up`] (the DOM's
+    /// `mouseup`).
+    fn on_mouse_up<M>(self, listener: impl IntoListener<MouseButtonEvent, M>) -> Self {
+        self.on(
+            EventKind::MouseUp,
+            events::typed(listener.into_listener(), events::mouse_button),
         )
     }
 

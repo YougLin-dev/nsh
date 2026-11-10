@@ -534,6 +534,17 @@ export interface MouseEvent {
   pressedButton: MouseButton | null;
 }
 
+/** Where a mouse button was released over a view: the payload of `onMouseUp`. */
+export interface MouseButtonEvent {
+  /** Position in the view (its transforms undone). */
+  position: Point;
+  /** Position in the root view the view is in (the surface or its modal), as touches' `pageX` / `pageY`. */
+  pagePosition: Point;
+  modifiers: Modifiers;
+  /** The button that was released. */
+  button: MouseButton;
+}
+
 /** A mouse button (GPUI's `MouseButton`). */
 export type MouseButton = "left" | "right" | "middle" | "back" | "forward";
 
@@ -662,6 +673,12 @@ pub const EVENTS: &[(EventKind, u32, &str, &str)] = &[
         on::ALL,
         "(e: MouseEvent) => void",
         "The mouse moved over the view (or a view inside it), with or without a button down (`e.pressedButton`), or a modifier key changed while it rests there with none down; at most once per frame.",
+    ),
+    (
+        EventKind::MouseUp,
+        on::ALL,
+        "(e: MouseButtonEvent) => void",
+        "A mouse button was released over the view (or a view inside it): which button (`e.button`), where, and with the modifiers. The primary button's release also reports `onPressUp`.",
     ),
     (
         EventKind::ContextMenu,

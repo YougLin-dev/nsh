@@ -133,6 +133,12 @@ misses the deadline is not waited for again until it catches up (`docs/dev/macos
   merges moves (`State::mouse_moves`): the latest per view, delivered at most once per `MOUSE_MOVE_INTERVAL` (8 ms) and
   always before the next other event, so a view hears where the mouse went before it hears it leave; mice report up to
   1000 moves a second, and a crosshair needs one per frame.
+- **`onMouseUp`** (any element): a mouse button was released over it or a view inside it (the DOM's `mouseup`):
+  `button` names it (`"left"`, `"right"`, `"middle"`, `"back"`, `"forward"`), with `position`, `pagePosition` and
+  `modifiers` (`EventPayload::MouseButton`, `MouseButtonEvent`; Rust `.on_mouse_up`). The primary button's release also
+  reports `onPressUp`. The desktops and the web walk out from the view under the pointer, as a move does; a right click's release
+  is what completes it, so an app that waits for it can open its menu without a timer or a press guess. The headless
+  driver's `rightClick` and the desktop test agents release the secondary button too.
 - **`onContextMenu`** (any element): the secondary button was pressed over a view (a right click; Control-click on
   macOS, in GPUI on macOS too; the browser's `contextmenu`), or a context menu was asked for without a pointer (below). The platform
   decides on the main thread from the mounted event masks, walking out from the view under the pointer: the first

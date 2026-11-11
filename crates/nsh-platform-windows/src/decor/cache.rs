@@ -9,9 +9,22 @@
 //! used bitmaps first.
 
 use std::cell::{Cell, RefCell};
+use std::sync::atomic::{AtomicU64, Ordering};
 
 use rustc_hash::FxHashMap;
 use windows::Win32::Graphics::Direct2D::ID2D1Bitmap1;
+
+/// Total cached lookups since process start; useful for diagnosing whether
+/// paint cost is coming from a bake (miss) or from rasterization (hit reuse).
+pub(crate) static LOOKUPS: AtomicU64 = AtomicU64::new(0);
+pub(crate) static MISSES: AtomicU64 = AtomicU64::new(0);
+
+pub(crate) fn hit_rate() -> (u64, u64) {
+    (
+        LOOKUPS.load(Ordering::Relaxed),
+        MISSES.load(Ordering::Relaxed),
+    )
+}
 
 /// A bitmap and where it goes, in the coordinates of the view it decorates.
 #[derive(Clone)]
@@ -105,6 +118,7 @@ fn limits() -> (usize, usize) {
 /// The bitmap kept under `key`, or the one `make` draws (then kept).
 /// `make` must not use the cache itself.
 pub(crate) fn get_or_make(key: u64, make: impl FnOnce() -> Option<Baked>) -> Option<Baked> {
+    LOOKUPS.fetch_add(1, Ordering::Relaxed);
     let generation = crate::gfx::generation();
     let current = frame();
     let found = CACHE.with(|cell| {
@@ -125,6 +139,7 @@ pub(crate) fn get_or_make(key: u64, make: impl FnOnce() -> Option<Baked>) -> Opt
     if found.is_some() {
         return found;
     }
+    MISSES.fetch_add(1, Ordering::Relaxed);
     let baked = make()?;
     // SAFETY: a COM call on a live bitmap.
     let size = unsafe { baked.bitmap.GetPixelSize() };

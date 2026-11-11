@@ -165,9 +165,10 @@ fn refresh_period() -> Duration {
 /// One second's line (see the module documentation).
 fn line(s: &PerfSnapshot, phases: &[Stat; 5]) -> String {
     let process = &s.process;
+    let (lookups, misses) = crate::decor::cache::hit_rate();
     format!(
         "fps {:.0}/{:.0} frame {} gap {} over {:.0}% tick {} drain {} paint {} present {} canvas {} \
-         commits {:.0} js {} core {} items {:.0} engine {:.0}% cpu {} mem {}",
+         commits {:.0} js {} core {} items {:.0} engine {:.0}% cpu {} mem {} bake {}/{}",
         s.fps,
         s.refresh_rate.unwrap_or(0.0),
         ms(&s.frame),
@@ -187,6 +188,8 @@ fn line(s: &PerfSnapshot, phases: &[Stat; 5]) -> String {
         process
             .memory
             .map_or("-".into(), |m| format!("{:.1} MB", m as f64 / 1e6)),
+        misses,
+        lookups,
     )
 }
 

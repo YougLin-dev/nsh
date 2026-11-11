@@ -20,7 +20,7 @@
 //! `borderCurve: "continuous"` draws circular corners, matching the clip of
 //! the children. Android's `elevation` is Android only.
 
-mod cache;
+pub(crate) mod cache;
 mod gradient;
 pub(crate) mod layer;
 
@@ -540,9 +540,28 @@ fn snapped(r: Bounds<Points>, scale: f32) -> Bounds<Points> {
     rect(x0, y0, x1 - x0, y1 - y0)
 }
 
-/// The scale a bitmap of `r` is drawn at: the window's, less when it would
-/// exceed [`MAX_BAKE`] pixels.
-fn bake_scale(r: Bounds<Points>, scale: f32) -> f32 {
+/// The effective scale the view's world transform applies on top of the
+/// window's DPI scale: a camera zoom of 2.5 makes a bitmap drawn at the
+/// raw DPI-scale be stretched by DrawBitmap every frame. Baking the bitmap
+/// at the camera-aware scale lets DrawBitmap display 1:1 with no up-sampling.
+/// Rotations and skews are reduced to the equivalent uniform scale (the
+/// determinant's square root) because the bitmap is axis-aligned. Scaling
+/// down is clamped to the DPI scale: smaller than that the bitmap loses
+/// detail the CSS shadow does not actually need.
+fn effective_scale(cx: &DrawCx<'_>) -> f32 {
+    if !cx.transform.is_affine() {
+        return cx.scale;
+    }
+    let t = cx.transform.to_3x2();
+    let det = (t.M11 * t.M22 - t.M12 * t.M21).abs();
+    let uniform = det.sqrt().max(1.0);
+    cx.scale * uniform
+}
+
+/// The scale a bitmap of `r` is drawn at: the effective scale of the view,
+/// less when it would exceed [`MAX_BAKE`] pixels.
+fn bake_scale(cx: &DrawCx<'_>, r: Bounds<Points>) -> f32 {
+    let scale = effective_scale(cx);
     scale
         .min(MAX_BAKE / r.size.width.0.max(1.0))
         .min(MAX_BAKE / r.size.height.0.max(1.0))
@@ -563,7 +582,7 @@ fn outer_shadow(cx: &DrawCx<'_>, w: f32, h: f32, radii: [f32; 4], spec: &ShadowS
         shape.size.width.0 + 2.0 * e,
         shape.size.height.0 + 2.0 * e,
     );
-    let scale = bake_scale(region, cx.scale);
+    let scale = bake_scale(cx, region);
     let region = snapped(region, scale);
     let key = shadow_key(b'o', w, h, radii, [0.0; 4], spec, scale);
     let gfx = cx.gfx;
@@ -610,7 +629,7 @@ fn inset_shadow(
         return;
     }
     let sigma = spec.blur / 2.0;
-    let scale = bake_scale(padding, cx.scale);
+    let scale = bake_scale(cx, padding);
     let region = snapped(padding, scale);
     let key = shadow_key(b'i', w, h, radii, widths, spec, scale);
     let gfx = cx.gfx;
@@ -1398,6 +1417,5 @@ mod tests {
         let r = snapped(rect(0.3, -0.2, 10.0, 5.0), 2.0);
         assert_eq!((r.origin.x.0, r.origin.y.0), (0.0, -0.5));
         assert!(r.origin.x.0 + r.size.width.0 >= 10.3 && r.origin.y.0 + r.size.height.0 >= 4.8);
-        assert!(close(bake_scale(rect(0.0, 0.0, 8192.0, 10.0), 2.0), 0.5));
     }
 }

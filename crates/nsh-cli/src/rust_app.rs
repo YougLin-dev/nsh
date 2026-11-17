@@ -797,6 +797,8 @@ pub(crate) struct RootConfig {
     url_schemes: Vec<String>,
     /// `"window"` (JSON, checked): the main window's launch options.
     window: Option<String>,
+    /// `"application"` (JSON, checked): the app's lifecycle options.
+    application: Option<String>,
     /// `"capabilities"` (JSON, as this NSH reads it: what it does not know
     /// left out): what the app may reach.
     capabilities: Option<String>,
@@ -1170,6 +1172,14 @@ fn root_config(
             Some(v.to_string())
         }
     };
+    let application = match config.get("application") {
+        None => None,
+        Some(v) => {
+            nsh_core::desktop::ApplicationOptions::from_json(v)
+                .map_err(|e| anyhow::anyhow!("nsh.json: application: {e}"))?;
+            Some(v.to_string())
+        }
+    };
     // Read as a TSX app's are (`nsh_bundler::capabilities`): what this NSH
     // does not know is not granted.
     let capabilities = match config.get("capabilities") {
@@ -1201,6 +1211,7 @@ fn root_config(
         status_bar,
         url_schemes,
         window,
+        application,
         capabilities,
         translations,
     })
@@ -3416,6 +3427,9 @@ fn root_fn(cfg: &str, krate: &str, root: &RootConfig) -> String {
     if let Some(window) = &root.window {
         make.push_str(&format!("\n        .main_window_json({window:?})"));
     }
+    if let Some(application) = &root.application {
+        make.push_str(&format!("\n        .application_json({application:?})"));
+    }
     format!(
         "\n/// The app's root (`nsh.json` `\"root\"`), with its theme, appearance and\n\
          /// status bar.\n\
@@ -3892,6 +3906,7 @@ mod tests {
                 status_bar: None,
                 url_schemes: Vec::new(),
                 window: None,
+                application: None,
                 capabilities: None,
                 translations: None,
             };
@@ -4152,6 +4167,7 @@ mod tests {
                 window: Some(
                     r#"{"defaultSize":{"width":900,"height":600},"title":"Notes"}"#.into(),
                 ),
+                application: Some(r#"{"quitOnLastWindowClosed":"platform"}"#.into()),
                 capabilities: None,
                 translations: None,
             },
@@ -4161,6 +4177,9 @@ mod tests {
             "nsh_core::element::Root::of::<app_native::App>()",
             "include_str!(\"/app/theme.json\")",
             ".appearance(nsh_core::element::Appearance::Dark)",
+            ".application_json(",
+            ".main_window_json(",
+            ".status_bar(",
             ".app_id(\"com.example.app\")",
             ".url_schemes([\"myapp\"])",
             ".status_bar(nsh_core::StatusBarSetting::default().foreground(nsh_core::StatusBarStyle::Light).hidden(false))",
@@ -4227,6 +4246,7 @@ mod tests {
                 status_bar: None,
                 url_schemes: Vec::new(),
                 window: None,
+                application: None,
                 capabilities: None,
                 translations: None,
             }),
@@ -5149,6 +5169,7 @@ panic = \"abort\"
                 status_bar: None,
                 url_schemes: Vec::new(),
                 window: None,
+                application: None,
                 capabilities: None,
                 translations: None,
             }),

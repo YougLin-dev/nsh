@@ -327,6 +327,12 @@ impl Ctx {
         let Some((_, view, input)) = self.get() else {
             return;
         };
+        eprintln!(
+            "DIAG changed view={} applying={} text={:?}",
+            view.id(),
+            input.applying.get(),
+            input.editor.borrow().text()
+        );
         input.update_placeholder();
         // The field's text paints outside its bounds: see `NshView::changed`.
         view.changed();

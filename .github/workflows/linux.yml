@@ -71,7 +71,7 @@ jobs:
     needs: changed
     # Nothing for drafts or a pull request being closed, nor for a scheduled
     # run when main has not changed since the last one.
-    if: ${{ !cancelled() && needs.changed.outputs.run != 'false' && (github.event_name != 'pull_request' || (github.event.action != 'closed' && !github.event.pull_request.draft)) }}
+    if: false && !cancelled() && needs.changed.outputs.run != 'false' && (github.event_name != 'pull_request' || (github.event.action != 'closed' && !github.event.pull_request.draft))
     environment:
       name: ci-debounce
       deployment: false
@@ -168,69 +168,10 @@ jobs:
         with:
           cache: linux
 
-      - name: Clippy
-        run: >
-          cargo clippy --all-targets
-          -p nsh-platform-linux -p nsh-linux-host -p nsh-linux-app
-          -p nsh-cli -p nsh-dev -p xtask
-          -- -D warnings
-
-      # The backend alone, without the `webview` feature the hosts turn on:
-      # web views as placeholders.
-      - name: Clippy (without WebKitGTK)
-        run: cargo clippy --all-targets -p nsh-platform-linux -- -D warnings
-
-      # Without the optional features: no naga, wgpu, syntect, RaTeX, ropey,
-      # imara-diff, tungstenite, rustls, GStreamer; no `zlib` or `crypto`
-      # module, no updater.
-      - name: Check without optional features
-        run: cargo clippy -p nsh-linux-app --no-default-features --features js -- -D warnings
-
-      # Each optional feature alone, so that none leans on another.
-      - name: Check each optional feature alone
-        run: |
-          for feature in shader editor rich-editor plot highlight math zlib crypto websocket updater svg net sound; do
-            cargo clippy -p nsh-linux-app --no-default-features --features "$feature" -- -D warnings
-          done
-
-      - name: Test without optional features
-        run: xvfb-run -a cargo test -p nsh-platform-linux --no-default-features --features js --lib without_the_feature
-
-      # The backend's tests that make GTK widgets (`gtk_test`) run where a
-      # display opens: the second run has a virtual one, with a session bus
-      # of its own, as the examples' tests below.
-      - name: Test
-        run: >
-          cargo test -p nsh-platform-linux -p nsh-cli -p nsh-dev
-          && dbus-run-session -- xvfb-run -a cargo test -p nsh-platform-linux --features webview
-
-      # Opt-in Action-interface tests use an independent AT client, not GTK signals.
-      # dev also executes the hosted editor/wrapper input regression.
-      - name: Test AT-SPI activation and input
-        env:
-          GTK_A11Y: atspi
-          GDK_BACKEND: x11
-          GSK_RENDERER: cairo
-          RUST_TEST_THREADS: "1"
-        run: |
-          dbus-run-session -- xvfb-run -a cargo test -p nsh-platform-linux --no-default-features --features dev --lib access::tests::activation_ -- --nocapture
-          dbus-run-session -- xvfb-run -a cargo test -p nsh-platform-linux --no-default-features --features dev --lib access::tests::atspi_activation_ -- --ignored --nocapture
-
-      # The examples' tests in GTK windows on a virtual display, with the
-      # platform's input (`nsh test --target linux`): those a real platform
-      # runs (real time).
+      # DIAG: only the storage gallery test, to see why typing into its
+      # multiline input does nothing in an app window.
       - name: Run the examples' tests in GTK windows
         run: |
           cargo build -p nsh-cli
-          # A session bus of its own: without one, GTK's portal and
-          # accessibility lookups wait for D-Bus autolaunch on each display.
           run() { dbus-run-session -- xvfb-run -a ./target/debug/nsh test "$@" --target linux; }
-          run examples/counter
-          for file in combobox-click context-menu device dock form gestures hover links navigation network photos resizable shortcuts storage timers; do
-            run "examples/gallery/tests/$file.test.tsx"
-          done
-          run examples/gallery/tests/environment.test.tsx --filter appearance
-          # Apps with Rust crates, in hosts built with them: a TSX app and a
-          # Rust app (its root).
-          run examples/rust-exports/App.test.tsx
-          run examples/gallery-rs/App.test.tsx
+          run examples/gallery/tests/storage.test.tsx

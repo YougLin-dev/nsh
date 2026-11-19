@@ -1234,8 +1234,33 @@ pub(crate) fn simulate(surface: &Rc<Surface>, action: Simulated) {
             up(surface, Key::Mouse, x, y, time, false);
             // GTK never sees simulated input: a release on a hosted widget
             // (a text field) focuses it, as a real click would.
-            if let Some(native) = pick(&event_root(surface), x, y).and_then(|hit| hit.native) {
-                focus_native(&native);
+            let root = event_root(surface);
+            match pick(&root, x, y) {
+                Some(hit) => match hit.native {
+                    Some(native) => {
+                        eprintln!(
+                            "DIAG up ({x:.1},{y:.1}) root={} view={} native={}",
+                            root.id(),
+                            hit.view.id(),
+                            native.type_().name()
+                        );
+                        focus_native(&native);
+                        let window = native.root().and_then(|r| r.downcast::<gtk::Window>().ok());
+                        eprintln!(
+                            "DIAG focus after up: {:?}",
+                            window
+                                .as_ref()
+                                .and_then(|w| w.focus())
+                                .map(|f| f.type_().name().to_string())
+                        );
+                    }
+                    None => eprintln!(
+                        "DIAG up ({x:.1},{y:.1}) root={} view={} no native",
+                        root.id(),
+                        hit.view.id()
+                    ),
+                },
+                None => eprintln!("DIAG up ({x:.1},{y:.1}) root={} nothing", root.id()),
             }
         }
         Simulated::Move(x, y) => {
@@ -1280,21 +1305,38 @@ pub(crate) fn simulate(surface: &Rc<Surface>, action: Simulated) {
 /// the keys typed next would replace.
 #[cfg(feature = "dev")]
 fn focus_native(widget: &gtk::Widget) {
+    focus_native_at(widget, true);
+}
+
+#[cfg(feature = "dev")]
+fn focus_native_at(widget: &gtk::Widget, top: bool) {
     if let Some(text) = text_inside(widget)
         && text.grab_focus_without_selecting()
     {
+        if top {
+            eprintln!("DIAG focus_native: text in {}", widget.type_().name());
+        }
         return;
     }
     if widget.grab_focus() {
+        if top {
+            eprintln!("DIAG focus_native: widget {}", widget.type_().name());
+        }
         return;
     }
     let mut child = widget.first_child();
     while let Some(c) = child {
         if c.is_focusable() && c.grab_focus() {
+            if top {
+                eprintln!("DIAG focus_native: child {} of {}", c.type_().name(), widget.type_().name());
+            }
             return;
         }
-        focus_native(&c);
+        focus_native_at(&c, false);
         child = c.next_sibling();
+    }
+    if top {
+        eprintln!("DIAG focus_native: nothing in {}", widget.type_().name());
     }
 }
 

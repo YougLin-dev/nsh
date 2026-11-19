@@ -74,6 +74,21 @@ impl LinuxNative {
         })
     }
 
+    /// The key window and its focused widget, for the diagnostics.
+    fn key_window_diag(&self) -> String {
+        self.with_key_window(|_, w| {
+            format!(
+                "window {:?} visible={} mapped={} active={} focus={:?}",
+                w.title(),
+                w.is_visible(),
+                w.is_mapped(),
+                w.is_active(),
+                w.focus().map(|f| f.type_().name().to_string())
+            )
+        })
+        .unwrap_or_else(|| "no key window".to_owned())
+    }
+
     /// `f` with the window keys go to (the focused one) on the main thread.
     fn with_key_window<R: Send + 'static>(
         &self,
@@ -295,10 +310,13 @@ impl Native for LinuxNative {
     }
 
     fn type_text(&self, text: &str) {
+        eprintln!("DIAG type_text {text:?}: {}", self.key_window_diag());
         // Key by key, as a keyboard's characters come.
         for ch in text.chars() {
             let keysym = crate::xtest::char_keysym(ch);
-            if self.real_keys(move |x| x.stroke(&[], keysym)) == Some(true) {
+            let typed = self.real_keys(move |x| x.stroke(&[], keysym));
+            eprintln!("DIAG char {ch:?} real_keys={typed:?}: {}", self.key_window_diag());
+            if typed == Some(true) {
                 continue;
             }
             self.with_key_window(move |_, w| synth::type_text(w, &ch.to_string()));
@@ -481,14 +499,17 @@ impl Native for LinuxNative {
     }
 
     fn focused(&self) -> Option<NodeId> {
-        self.with_key_window(|_, w| {
-            let field = synth::focused_text(w)?;
-            let view = field
-                .ancestor(crate::view::NshView::static_type())
-                .and_then(|v| v.downcast::<crate::view::NshView>().ok())?;
-            Some(view.id())
-        })
-        .flatten()
+        let focused = self
+            .with_key_window(|_, w| {
+                let field = synth::focused_text(w)?;
+                let view = field
+                    .ancestor(crate::view::NshView::static_type())
+                    .and_then(|v| v.downcast::<crate::view::NshView>().ok())?;
+                Some(view.id())
+            })
+            .flatten();
+        eprintln!("DIAG focused={focused:?}: {}", self.key_window_diag());
+        focused
     }
 
     fn paste(&self, content: &nsh_core::PasteEvent) -> Result<(), String> {

@@ -2218,6 +2218,15 @@ impl Agent {
     /// Focuses the input `selector` names by pressing it.
     fn focus(&self, selector: &str) -> Result<(), String> {
         let (id, at) = self.find(selector, "input", PickTarget::Input)?;
+        let bounds = self
+            .native
+            .bounds(id)
+            .map(|b| (b.origin.x.0, b.origin.y.0, b.size.width.0, b.size.height.0));
+        let viewport = self.native.viewport();
+        eprintln!(
+            "DIAG focus({selector}) id={id} at=({:.1},{:.1}) bounds={bounds:?} viewport=({:.1},{:.1})",
+            at.x.0, at.y.0, viewport.width.0, viewport.height.0
+        );
         self.native.press(at);
         self.settled()?;
         if let Some(focused) = self.native.focused()

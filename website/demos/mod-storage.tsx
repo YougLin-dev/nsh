@@ -10,9 +10,14 @@ function App() {
 
   const start = async () => {
     const count = Number((await Storage.getItem("opened")) ?? "0") + 1;
-    await Storage.setItem("opened", String(count));
-    await Storage.setItem("lastOpened", new Date().toISOString());
     opened.set(count);
+    try {
+      await Storage.setItem("opened", String(count));
+      await Storage.setItem("lastOpened", new Date().toISOString());
+    } catch {
+      // The browser refused the entries (an opaque origin, blocked site
+      // data): this visit still counts, it just will not survive a reload.
+    }
     keys.set(await Storage.keys());
   };
   const reset = async () => {
